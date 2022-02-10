@@ -11,6 +11,10 @@
  */
 //#include "../usermods/EXAMPLE_v2/usermod_v2_example.h"
 
+#ifdef USERMOD_BLUBBERLOUNGE_SCLU
+#include "../usermods/BlubberLounge_SCLU/usermod_v2_blubberlounge_SCLU.h"
+#endif
+
 #ifdef USERMOD_BATTERY_STATUS_BASIC
 #include "../usermods/battery_status_basic/usermod_v2_battery_status_basic.h"
 #endif
@@ -116,6 +120,10 @@ void registerUsermods()
    * \/ \/ \/
    */
   //usermods.add(new MyExampleUsermod());
+
+  #ifdef USERMOD_BLUBBERLOUNGE_SCLU
+  usermods.add(new UsermodBlubberLoungeSCLU());
+  #endif
 
   #ifdef USERMOD_BATTERY_STATUS_BASIC
   usermods.add(new UsermodBatteryBasic());
