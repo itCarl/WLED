@@ -3,39 +3,60 @@
 #include "wled.h"
 
 /*
- * Usermods allow you to add own functionality to WLED more easily
- * See: https://github.com/Aircoookie/WLED/wiki/Add-own-functionality
- * 
- * This is an example for a v2 usermod.
- * v2 usermods are class inheritance based and can (but don't have to) implement more functions, each of them is shown in this example.
- * Multiple v2 usermods can be added to one compilation easily.
- * 
- * Creating a usermod:
- * This file serves as an example. If you want to create a usermod, it is recommended to use usermod_v2_empty.h from the usermods folder as a template.
- * Please remember to rename the class and file to a descriptive name.
- * You may also use multiple .h and .cpp files.
- * 
- * Using a usermod:
- * 1. Copy the usermod into the sketch folder (same folder as wled00.ino)
- * 2. Register the usermod by adding #include "usermod_filename.h" in the top and registerUsermod(new MyUsermodClass()) in the bottom of usermods_list.cpp
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
  */
-
-//class name. Use something descriptive and leave the ": public Usermod" part :)
-class UsermodBlubberLoungeSCLU : public Usermod {
+class UsermodBlubberLoungeSCLU : public Usermod 
+{
   private:
+    /* configuration (available in API and stored in flash) */
+    bool enabled = false;
+
+
+    /* runtime variables */
+    bool initDone = false;
+    unsigned long segment_delay_ms = 150;
+
     //Private class members. You can declare variables and functions only accessible to your usermod here
     unsigned long lastTime = 0;
 
     // set your config variables to their boot default value (this can also be done in readFromConfig() or a constructor if you prefer)
-    bool testBool = false;
-    unsigned long testULong = 42424242;
-    float testFloat = 42.42;
-    String testString = "Forty-Two";
+    // bool testBool = false;
+    // unsigned long testULong = 42424242;
+    // float testFloat = 42.42;
+    // String testString = "Forty-Two";
 
-    // These config variables have defaults set inside readFromConfig()
-    int testInt;
-    long testLong;
-    int8_t testPins[2];
+    // // These config variables have defaults set inside readFromConfig()
+    // int testInt;
+    // long testLong;
+    // int8_t testPins[2];
+
+    // Every usable output pin from ESP8266
+    // D1mini labels and GPIO
+    PinManagerPinType LaserPins[8] = {
+        {  0, true },    // D3 - GPIO0
+        {  1, true },    // TX - GPIO1
+        {  4, true },    // D4 - GPIO4
+        {  5, true },    // D1 - GPIO5
+        { 12, true },    // D6 - GPIO12
+        { 13, true },    // D7 - GPIO13
+        { 14, true },    // D5 - GPIO14
+        { 15, true },    // D8 - GPIO14
+    };
+
+
+    // strings to reduce flash memory usage (used more than twice)
+    static const char _name[];
+    static const char _enabled[];
+    static const char _alias[];
 
   public:
     //Functions called by WLED
@@ -44,8 +65,17 @@ class UsermodBlubberLoungeSCLU : public Usermod {
      * setup() is called once at boot. WiFi is not yet connected at this point.
      * You can use it to initialize variables, sensors or similar.
      */
-    void setup() {
-      Serial.println("Hello from my usermod!");
+    void setup() 
+    {
+      // when WLED_DEBUG is defined this will throw an Error
+      // IO1 is reserved for Debugging see wled.cpp line 311
+      if (!pinManager.allocateMultiplePins(LaserPins, 8, PinOwner::UM_BLUBBERLOUNGE_SCLU)) 
+      {
+        DEBUG_PRINTLN(F("Error: not all pins got allocated"));
+
+      }
+
+      initDone = true;
     }
 
 
@@ -53,7 +83,8 @@ class UsermodBlubberLoungeSCLU : public Usermod {
      * connected() is called every time the WiFi is (re)connected
      * Use it to initialize network interfaces
      */
-    void connected() {
+    void connected() 
+    {
       //Serial.println("Connected to WiFi!");
     }
 
@@ -68,9 +99,17 @@ class UsermodBlubberLoungeSCLU : public Usermod {
      * 2. Try to avoid using the delay() function. NEVER use delays longer than 10 milliseconds.
      *    Instead, use a timer check as shown here.
      */
-    void loop() {
-      if (millis() - lastTime > 1000) {
-        //Serial.println("I'm alive!");
+    void loop() 
+    {
+      if (!enabled || strip.isUpdating()) return;
+
+      updateLaser();
+    }
+
+    void updateLaser() 
+    {
+      if ((millis() - lastTime) > segment_delay_ms) 
+      {
         lastTime = millis();
       }
     }
@@ -81,19 +120,24 @@ class UsermodBlubberLoungeSCLU : public Usermod {
      * Creating an "u" object allows you to add custom key/value pairs to the Info section of the WLED web UI.
      * Below it is shown how this could be used for e.g. a light sensor
      */
-    /*
     void addToJsonInfo(JsonObject& root)
     {
-      int reading = 20;
-      //this code adds "u":{"Light":[20," lux"]} to the info object
-      JsonObject user = root["u"];
-      if (user.isNull()) user = root.createNestedObject("u");
+      JsonObject sclu = root["u"];
+      if (sclu.isNull()) sclu = root.createNestedObject("u");
 
-      JsonArray lightArr = user.createNestedArray("Light"); //name
-      lightArr.add(reading); //value
-      lightArr.add(" lux"); //unit
+      JsonArray usermodEnabled = sclu.createNestedArray("Shisha coaster Laser");  // name
+      
+      String btn = F("<button class=\"btn infobtn cbtn\" onclick=\"requestJson({sclu:{enabled:");
+      if (enabled) {
+        btn += F("false}});\"style=\"background-color:var(--cc-g);\">");
+        btn += F("enabled");
+      } else {
+        btn += F("true}});\"style=\"background-color:var(--cc-r);\">");
+        btn += F("disabled");
+      }
+      btn += F("</button>");
+      usermodEnabled.add(btn);
     }
-    */
 
 
     /*
@@ -102,7 +146,18 @@ class UsermodBlubberLoungeSCLU : public Usermod {
      */
     void addToJsonState(JsonObject& root)
     {
-      //root["user0"] = userVar0;
+      JsonObject sclu = root[FPSTR(_alias)];
+      if (sclu.isNull()) sclu = root.createNestedObject(FPSTR(_alias));
+
+      for(int i=0; i < 8; i++) {
+        sclu[(String)LaserPins[i].pin]["id"] = i;
+        sclu[(String)LaserPins[i].pin]["name"] = "test";
+      }
+
+      DEBUG_PRINT(F("---DEBUG "));
+      DEBUG_PRINT(FPSTR(_name));
+      DEBUG_PRINTLN(F("---"));
+      DEBUG_PRINTLN(F("state exposed in API."));
     }
 
 
@@ -112,8 +167,25 @@ class UsermodBlubberLoungeSCLU : public Usermod {
      */
     void readFromJsonState(JsonObject& root)
     {
-      userVar0 = root["user0"] | userVar0; //if "user0" key exists in JSON, update, else keep old value
-      //if (root["bri"] == 255) Serial.println(F("Don't burn down your garage!"));
+      if (!initDone) return;  // prevent crash on boot applyPreset()
+
+      JsonObject sclu = root[FPSTR(_alias)];
+      if (!sclu.isNull()) 
+      {
+        if (sclu[FPSTR(_enabled)].is<bool>()) 
+        {
+          enabled = sclu[FPSTR(_enabled)].as<bool>();
+        } else 
+        {
+          String str = sclu[FPSTR(_enabled)]; // checkbox -> off or on
+          enabled = (bool)(str!="off"); // off is guaranteed to be present
+        }
+      }
+
+      DEBUG_PRINT(F("---DEBUG "));
+      DEBUG_PRINT(FPSTR(_name));
+      DEBUG_PRINTLN(F("---"));
+      DEBUG_PRINTLN(F("state read from API."));
     }
 
 
@@ -154,17 +226,15 @@ class UsermodBlubberLoungeSCLU : public Usermod {
      */
     void addToConfig(JsonObject& root)
     {
-      JsonObject top = root.createNestedObject("exampleUsermod");
-      top["great"] = userVar0; //save these vars persistently whenever settings are saved
-      top["testBool"] = testBool;
-      top["testInt"] = testInt;
-      top["testLong"] = testLong;
-      top["testULong"] = testULong;
-      top["testFloat"] = testFloat;
-      top["testString"] = testString;
-      JsonArray pinArray = top.createNestedArray("pin");
-      pinArray.add(testPins[0]);
-      pinArray.add(testPins[1]); 
+      JsonObject sclu = root[FPSTR(_alias)];
+      if (sclu.isNull()) sclu = root.createNestedObject(FPSTR(_alias));
+
+      sclu[FPSTR(_enabled)] = enabled;
+
+      DEBUG_PRINT(F("---DEBUG "));
+      DEBUG_PRINT(FPSTR(_name));
+      DEBUG_PRINTLN(F("---"));
+      DEBUG_PRINTLN(F("config saved."));
     }
 
 
@@ -185,26 +255,45 @@ class UsermodBlubberLoungeSCLU : public Usermod {
      */
     bool readFromConfig(JsonObject& root)
     {
-      // default settings values could be set here (or below using the 3-argument getJsonValue()) instead of in the class definition or constructor
-      // setting them inside readFromConfig() is slightly more robust, handling the rare but plausible use case of single value being missing after boot (e.g. if the cfg.json was manually edited and a value was removed)
+      JsonObject sclu = root[FPSTR(_alias)];
+      if (sclu.isNull()) {
+        DEBUG_PRINT(F("--- DEBUG "));
+        DEBUG_PRINT(FPSTR(_name));
+        DEBUG_PRINTLN(F("---"));
+        DEBUG_PRINTLN(F(": No config found. (Using defaults.)"));
+        return false;
+      }
 
-      JsonObject top = root["exampleUsermod"];
+     
+      enabled = sclu[FPSTR(_enabled)] | enabled;
 
-      bool configComplete = !top.isNull();
 
-      configComplete &= getJsonValue(top["great"], userVar0);
-      configComplete &= getJsonValue(top["testBool"], testBool);
-      configComplete &= getJsonValue(top["testULong"], testULong);
-      configComplete &= getJsonValue(top["testFloat"], testFloat);
-      configComplete &= getJsonValue(top["testString"], testString);
+      DEBUG_PRINT(F("--- DEBUG "));
+      DEBUG_PRINT(FPSTR(_name));
+      DEBUG_PRINTLN(F("---"));
+      if (!initDone) {
+        // first run: reading from cfg.json
+        DEBUG_PRINTLN(F(" config loaded."));
+      } else {
 
-      // A 3-argument getJsonValue() assigns the 3rd argument as a default value if the Json value is missing
-      configComplete &= getJsonValue(top["testInt"], testInt, 42);  
-      configComplete &= getJsonValue(top["testLong"], testLong, -42424242);
-      configComplete &= getJsonValue(top["pin"][0], testPins[0], -1);
-      configComplete &= getJsonValue(top["pin"][1], testPins[1], -1);
+      }
 
-      return configComplete;
+
+      // bool configComplete = !top.isNull();
+      // configComplete &= getJsonValue(top["great"], userVar0);
+      // configComplete &= getJsonValue(top["testBool"], testBool);
+      // configComplete &= getJsonValue(top["testULong"], testULong);
+      // configComplete &= getJsonValue(top["testFloat"], testFloat);
+      // configComplete &= getJsonValue(top["testString"], testString);
+
+      // // A 3-argument getJsonValue() assigns the 3rd argument as a default value if the Json value is missing
+      // configComplete &= getJsonValue(top["testInt"], testInt, 42);  
+      // configComplete &= getJsonValue(top["testLong"], testLong, -42424242);
+      // configComplete &= getJsonValue(top["pin"][0], testPins[0], -1);
+      // configComplete &= getJsonValue(top["pin"][1], testPins[1], -1);
+
+      // use "return !configComplete["newestParameter"].isNull();" when updating Usermod with new features
+      return true;
     }
 
    
@@ -216,7 +305,9 @@ class UsermodBlubberLoungeSCLU : public Usermod {
     {
       return USERMOD_ID_BLUBBERLOUNGE_SCLU;
     }
-
-   //More methods can be added in the future, this example will then be extended.
-   //Your usermod will remain compatible as it does not need to implement all methods from the Usermod base class!
 };
+
+// strings to reduce flash memory usage (used more than twice)
+const char UsermodBlubberLoungeSCLU::_name[]                      PROGMEM = "Shisha coaster Laser";
+const char UsermodBlubberLoungeSCLU::_alias[]                     PROGMEM = "sclu";
+const char UsermodBlubberLoungeSCLU::_enabled[]                   PROGMEM = "enabled";

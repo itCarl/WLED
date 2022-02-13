@@ -1,0 +1,54 @@
+:root {
+	/* custom colors */
+	--cc-g: rgb(46, 176, 134);
+	--cc-r: rgb(179, 48, 48);
+	--las-rad: 7rem;
+	--las-off: 22.5deg;
+	--las-tot: 8;
+}
+
+hr.chr {
+    width: 80%;
+    border: 0;
+    height: 1px;
+    background-image: linear-gradient(to right, var(--c-2), var(--c-8), var(--c-2));
+	margin: 3.75rem auto;
+}
+
+/* custom button in info modal */
+.cbtn {
+	width: auto;
+	padding: .4em 1em;
+	border-radius: .3em;
+}
+
+/* laser controls */
+#lasli {
+	height: 350px;
+	position: relative;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+}
+
+#lasli > *:not(h3) {
+	display: block;
+	position: absolute;
+	margin: -3em;
+	width: 6em;
+	height: 6em;
+	border-radius: 2rem;
+	--las-rot: calc(var(--las-off) + calc(360deg/var(--las-tot))*var(--las-item));
+	transform: 	rotate(var(--las-rot))
+				translate(var(--las-rad))
+				rotate(calc(var(--las-rot)*-1));
+}
+
+/* .lasfx-item {
+	margin: auto;
+	padding: 1em;
+}
+
+.lasfx-item + .lasfx-item {
+	margin: 20px auto;
+} */

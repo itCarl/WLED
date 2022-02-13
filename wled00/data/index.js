@@ -638,6 +638,41 @@ function populateSegments(s)
 	if (segCount < 2) d.getElementById(`segd${lSeg}`).style.display = "none";
 	if (!noNewSegs && (cfg.comp.seglen?parseInt(d.getElementById(`seg${lSeg}s`).value):0)+parseInt(d.getElementById(`seg${lSeg}e`).value)<ledCount) d.getElementById(`segr${lSeg}`).style.display = "inline";
 	d.getElementById('rsbtn').style.display = (segCount > 1) ? "inline":"none";
+
+    let laso = s.sclu;
+    let lasoL = Object.keys((laso||[])).length;
+    console.table(laso);
+    console.log(lasoL);
+	let lc = "";
+	for(let i = 1; i < 9; i++) 
+	{
+		lc += `
+		<div class="laser" style="--las-item:${i};">
+			<!--<span> Laser ${i}</span>-->
+			<label class="check schkl">
+				&nbsp;
+				<input type="checkbox" id="las${i}sel" onchange="selLas(${i})" ${inst.sel ? "checked":""}>
+				<span class="checkmark schk"></span>
+			</label>
+		</div>
+		`;
+	}
+
+	let lfx = "";
+	for(let j = 1; j < lasoL; j++) 
+	{
+		lfx += generateListItemHtml(
+			'las',
+			laso.id,
+			'Effect #'+j,
+			'setLasFx',
+			'',
+			'',
+		);
+	}
+
+	d.getElementById('lasli').innerHTML = lc;
+	d.getElementById('lasfx').innerHTML = lfx;
 }
 
 function populateEffects(effects)
@@ -703,7 +738,6 @@ function populatePalettes(palettes)
 
 	pallist.innerHTML=html;
 }
-
 function redrawPalPrev()
 {
 	let palettes = d.querySelectorAll('#pallist .lstI');
