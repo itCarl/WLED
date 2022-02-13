@@ -19,6 +19,7 @@ class UsermodBlubberLoungeSCLU : public Usermod
   private:
     /* configuration (available in API and stored in flash) */
     bool enabled = false;
+    int8_t currentEffect = 3;
 
 
     /* runtime variables */
@@ -146,13 +147,19 @@ class UsermodBlubberLoungeSCLU : public Usermod
      */
     void addToJsonState(JsonObject& root)
     {
-      JsonObject sclu = root[FPSTR(_alias)];
-      if (sclu.isNull()) sclu = root.createNestedObject(FPSTR(_alias));
+      JsonArray sclu = root[FPSTR(_alias)];
+      if (sclu.isNull()) sclu = root.createNestedArray(FPSTR(_alias));
 
-      for(int i=0; i < 8; i++) {
-        sclu[(String)LaserPins[i].pin]["id"] = i;
-        sclu[(String)LaserPins[i].pin]["name"] = "test";
+      /* add effect to the GUI laser effect list */
+      JsonArray effects = sclu.createNestedArray();
+      for(int i=0; i < 7; i++) {
+        JsonObject fx = effects.createNestedObject();
+        fx["id"] = i;
+        fx["name"] = "Effect #"+(String)(i+1);
       }
+
+      JsonObject laser = sclu.createNestedObject();
+      laser["fx"] = currentEffect;
 
       DEBUG_PRINT(F("---DEBUG "));
       DEBUG_PRINT(FPSTR(_name));
@@ -169,18 +176,23 @@ class UsermodBlubberLoungeSCLU : public Usermod
     {
       if (!initDone) return;  // prevent crash on boot applyPreset()
 
-      JsonObject sclu = root[FPSTR(_alias)];
+      JsonArray sclu = root[FPSTR(_alias)];
       if (!sclu.isNull()) 
       {
-        if (sclu[FPSTR(_enabled)].is<bool>()) 
-        {
-          enabled = sclu[FPSTR(_enabled)].as<bool>();
-        } else 
-        {
-          String str = sclu[FPSTR(_enabled)]; // checkbox -> off or on
-          enabled = (bool)(str!="off"); // off is guaranteed to be present
-        }
+        // if (sclu[FPSTR(_enabled)].is<bool>()) 
+        // {
+        //   enabled = sclu[FPSTR(_enabled)].as<bool>();
+        // } else 
+        // {
+        //   String str = sclu[FPSTR(_enabled)]; // checkbox -> off or on
+        //   enabled = (bool)(str!="off"); // off is guaranteed to be present
+        // }
+        
+        currentEffect = sclu[1]["fx"];
+        DEBUG_PRINT(F("!!! currentFX: "));
+        DEBUG_PRINTLN(currentEffect);
       }
+
 
       DEBUG_PRINT(F("---DEBUG "));
       DEBUG_PRINT(FPSTR(_name));
