@@ -23,7 +23,7 @@ var pN = "", pI = 0, pNum = 0;
 var pmt = 1, pmtLS = 0, pmtLast = 0;
 var lastinfo = {};
 var ws;
-var fxlist = d.getElementById('fxlist'), pallist = d.getElementById('pallist');
+var fxlist = d.getElementById('fxlist'), pallist = d.getElementById('pallist'), lasfxlist = d.getElementById('lasfx');
 var cfg = {
 	theme:{base:"dark", bg:{url:""}, alpha:{bg:0.6,tab:0.8}, color:{bg:""}},
 	comp :{colors:{picker: true, rgb: false, quick: true, hex: false},
@@ -640,9 +640,7 @@ function populateSegments(s)
 	d.getElementById('rsbtn').style.display = (segCount > 1) ? "inline":"none";
 
     let laso = s.sclu;
-    let lasoL = Object.keys((laso||[])).length;
     console.table(laso);
-    console.log(lasoL);
 	let lc = "";
 	for(let i = 1; i < 9; i++) 
 	{
@@ -651,7 +649,7 @@ function populateSegments(s)
 			<!--<span> Laser ${i}</span>-->
 			<label class="check schkl">
 				&nbsp;
-				<input type="checkbox" id="las${i}sel" onchange="selLas(${i})" ${inst.sel ? "checked":""}>
+				<input type="checkbox" id="laser${i}" onchange="laserOn(${i})" ${true ? "checked":""}>
 				<span class="checkmark schk"></span>
 			</label>
 		</div>
@@ -659,15 +657,16 @@ function populateSegments(s)
 	}
 
 	let lfx = "";
-	for(let j = 1; j < lasoL; j++) 
+	for(let j = 0; j < (laso[0]||[]).length; j++) 
 	{
+		let lasi = laso[0][j];
 		lfx += generateListItemHtml(
 			'las',
-			laso.id,
-			'Effect #'+j,
-			'setLasFx',
+			lasi.id,
+			lasi.name,
+			'selLasFx',
 			'',
-			'',
+			lasi.class,
 		);
 	}
 
@@ -1050,6 +1049,17 @@ function readState(s,command=false) {
 
   d.getElementById('sliderSpeed').value = i.sx;
   d.getElementById('sliderIntensity').value = i.ix;
+
+  // Laser Effects
+  var selLasFx = lasfxlist.querySelector(`input[name="las"][value="${s["sclu"][1].fx}"]`);
+  if (selLasFx) selLasFx.checked = true;
+
+  var selElement = lasfxlist.querySelector('.selected');
+  if (selElement) {
+    selElement.classList.remove('selected')
+  }
+  var selectedLaserEffect = lasfxlist.querySelector(`.lstI[data-id="${s["sclu"][1].fx}"]`);
+  selectedLaserEffect.classList.add('selected');
 
   // Effects
   var selFx = fxlist.querySelector(`input[name="fx"][value="${i.fx}"]`);
@@ -1626,6 +1636,23 @@ function setX(ind = null) {
 	d.querySelector(`#fxlist .lstI[data-id="${ind}"]`).classList.add('selected');
 
 	var obj = {"seg": {"fx": parseInt(ind)}};
+	requestJson(obj);
+}
+
+function selLasFx(id = null) {
+	if (id === null) {
+		id = parseInt(d.querySelector('#lasfx input[name="las"]:checked').value);
+	} else {
+		d.querySelector(`#lasfx input[name="las"][value="${id}`).checked = true;
+	}
+	var selElement = d.querySelector('#lasfx .selected');
+	if (selElement) {
+		selElement.classList.remove('selected');
+	}
+	d.querySelector(`#lasfx .lstI[data-id="${id}"]`).classList.add('selected');
+
+	// kinda aids... but has to work for now
+	var obj = {"sclu": [[],{"fx": parseInt(id)}]};
 	requestJson(obj);
 }
 
