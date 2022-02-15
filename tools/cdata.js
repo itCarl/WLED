@@ -206,6 +206,14 @@ writeChunks(
       append: "</style>)=====",
       method: "plaintext",
       filter: "css-minify",
+    },    
+    { // custom stylesheet
+      file: "custom.css",
+      name: "PAGE_settingsCCss",
+      prepend: "=====(<style>",
+      append: "</style>)=====",
+      method: "plaintext",
+      filter: "css-minify",
     },
     {
       file: "settings.htm",

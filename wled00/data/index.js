@@ -640,9 +640,9 @@ function populateSegments(s)
 	d.getElementById('rsbtn').style.display = (segCount > 1) ? "inline":"none";
 
     let laso = s.sclu;
-    console.table(laso);
+    // console.log(laso);
 	let lc = "";
-	for(let i = 1; i < 9; i++) 
+	for(let i = 0; i < 8; i++) 
 	{
 		lc += `
 		<div class="laser" style="--las-item:${i};">
@@ -657,9 +657,9 @@ function populateSegments(s)
 	}
 
 	let lfx = "";
-	for(let j = 0; j < (laso[0]||[]).length; j++) 
+	for(let j = 0; j < (laso[1]||[]).length; j++) 
 	{
-		let lasi = laso[0][j];
+		let lasi = laso[1][j];
 		lfx += generateListItemHtml(
 			'las',
 			lasi.id,
@@ -672,6 +672,15 @@ function populateSegments(s)
 
 	d.getElementById('lasli').innerHTML = lc;
 	d.getElementById('lasfx').innerHTML = lfx;
+}
+
+function setLaserState(sclu) {
+	// set laser state
+	for(let i=0; i < sclu.length; i++) 
+	{
+		d.querySelector(`input#laser${sclu[i].id}`).checked = sclu[i].on;
+	}
+
 }
 
 function populateEffects(effects)
@@ -1050,15 +1059,18 @@ function readState(s,command=false) {
   d.getElementById('sliderSpeed').value = i.sx;
   d.getElementById('sliderIntensity').value = i.ix;
 
+  // retrieve laser and set their state
+  setLaserState(s.sclu[0]);
+
   // Laser Effects
-  var selLasFx = lasfxlist.querySelector(`input[name="las"][value="${s["sclu"][1].fx}"]`);
+  var selLasFx = lasfxlist.querySelector(`input[name="las"][value="${s["sclu"][2].fx}"]`);
   if (selLasFx) selLasFx.checked = true;
 
   var selElement = lasfxlist.querySelector('.selected');
   if (selElement) {
     selElement.classList.remove('selected')
   }
-  var selectedLaserEffect = lasfxlist.querySelector(`.lstI[data-id="${s["sclu"][1].fx}"]`);
+  var selectedLaserEffect = lasfxlist.querySelector(`.lstI[data-id="${s["sclu"][2].fx}"]`);
   selectedLaserEffect.classList.add('selected');
 
   // Effects
@@ -1639,6 +1651,12 @@ function setX(ind = null) {
 	requestJson(obj);
 }
 
+function laserOn(id) {
+	var sel = d.getElementById(`laser${id}`).checked;
+	var obj = {"sclu": {"id":id,"on":sel}};
+	requestJson(obj, false);
+}
+
 function selLasFx(id = null) {
 	if (id === null) {
 		id = parseInt(d.querySelector('#lasfx input[name="las"]:checked').value);
@@ -1652,7 +1670,7 @@ function selLasFx(id = null) {
 	d.querySelector(`#lasfx .lstI[data-id="${id}"]`).classList.add('selected');
 
 	// kinda aids... but has to work for now
-	var obj = {"sclu": [[],{"fx": parseInt(id)}]};
+	var obj = {"sclu": [[],[],{"fx": parseInt(id)}]};
 	requestJson(obj);
 }
 

@@ -1,13 +1,29 @@
 #pragma once
 
 #include "wled.h"
-
 /*
  *
  *
  *
  *
- *
+ */
+
+typedef struct Laser {
+  int8_t id;
+  int8_t pin;
+  bool   isOn = true;
+  bool   isOutput = true;
+} Laser;
+
+// typedef struct test {
+//   int number;
+// } test;
+
+
+
+
+
+/*
  *
  *
  *
@@ -20,6 +36,7 @@ class UsermodBlubberLoungeSCLU : public Usermod
     /* configuration (available in API and stored in flash) */
     bool enabled = false;
     int8_t currentEffect = 3;
+    static const int8_t totalLaser = 8;
 
 
     /* runtime variables */
@@ -29,35 +46,61 @@ class UsermodBlubberLoungeSCLU : public Usermod
     //Private class members. You can declare variables and functions only accessible to your usermod here
     unsigned long lastTime = 0;
 
-    // set your config variables to their boot default value (this can also be done in readFromConfig() or a constructor if you prefer)
-    // bool testBool = false;
-    // unsigned long testULong = 42424242;
-    // float testFloat = 42.42;
-    // String testString = "Forty-Two";
-
-    // // These config variables have defaults set inside readFromConfig()
-    // int testInt;
-    // long testLong;
-    // int8_t testPins[2];
-
-    // Every usable output pin from ESP8266
-    // D1mini labels and GPIO
-    PinManagerPinType LaserPins[8] = {
-        {  0, true },    // D3 - GPIO0
-        {  1, true },    // TX - GPIO1
-        {  4, true },    // D4 - GPIO4
-        {  5, true },    // D1 - GPIO5
-        { 12, true },    // D6 - GPIO12
-        { 13, true },    // D7 - GPIO13
-        { 14, true },    // D5 - GPIO14
-        { 15, true },    // D8 - GPIO14
-    };
-
+    PinManagerPinType LaserPins[totalLaser];
+    Laser laserList[totalLaser];
 
     // strings to reduce flash memory usage (used more than twice)
     static const char _name[];
     static const char _enabled[];
     static const char _alias[];
+
+    /*
+     *  setup all pins and laser objects
+     */
+    void createLaserList(uint8_t laserCount, PinManagerPinType* pinManagerPins, Laser* initLaser) 
+    {
+      // TODO at pins for the other chips later
+      // available pins for esp8266
+      uint8_t avai_pins[8] = {0, 1, 4, 5, 12, 13, 14, 15};
+
+      // check if microchip has enough pins available
+      // if(laserCount > sizeof(avai_pins)/sizeof(*avai_pins) ) 
+      // {
+      //   DEBUG_PRINTLN(F("Error: not enough pins available"));
+      //   // limit the total laser
+      //   totalLaser = sizeof(avai_pins)/sizeof(*avai_pins);
+      // } 
+
+      for(uint8_t i = 0; i < *(&avai_pins + 1) - avai_pins; i++) 
+      {
+        initLaser[i].id = i;
+        initLaser[i].pin = avai_pins[i];
+
+        pinManagerPins[i].pin = initLaser[i].pin;
+        pinManagerPins[i].isOutput = initLaser[i].isOutput;
+      }
+
+      // D1mini labels and GPIO
+      // PinManagerPinType LaserPins[totalLaser] = {
+      //     {  0, true },    // D3 - GPIO0
+      //     {  1, true },    // TX - GPIO1
+      //     {  4, true },    // D4 - GPIO4
+      //     {  5, true },    // D1 - GPIO5
+      //     { 12, true },    // D6 - GPIO12
+      //     { 13, true },    // D7 - GPIO13
+      //     { 14, true },    // D5 - GPIO14
+      //     { 15, true },    // D8 - GPIO14
+      // };
+    }
+
+    // int a = 10;
+    // test b[2];
+    // int* aptr = &a;
+
+    // void teeest(int &c, test *d) {
+    //   c = 11;
+    //   d[0].number = 34;
+    // }
 
   public:
     //Functions called by WLED
@@ -68,9 +111,20 @@ class UsermodBlubberLoungeSCLU : public Usermod
      */
     void setup() 
     {
+      // DEBUG_PRINTLN( a );
+      // DEBUG_PRINTLN( (int)aptr );
+      // DEBUG_PRINTLN( b[0].number );
+
+      // teeest(a, &b[0]);
+
+      // DEBUG_PRINTLN( a );
+      // DEBUG_PRINTLN( b[0].number );
+
+      createLaserList(totalLaser, LaserPins, laserList);
+
       // when WLED_DEBUG is defined this will throw an Error
       // IO1 is reserved for Debugging see wled.cpp line 311
-      if (!pinManager.allocateMultiplePins(LaserPins, 8, PinOwner::UM_BLUBBERLOUNGE_SCLU)) 
+      if (!pinManager.allocateMultiplePins(LaserPins, totalLaser, PinOwner::UM_BLUBBERLOUNGE_SCLU)) 
       {
         DEBUG_PRINTLN(F("Error: not all pins got allocated"));
 
@@ -150,21 +204,29 @@ class UsermodBlubberLoungeSCLU : public Usermod
       JsonArray sclu = root[FPSTR(_alias)];
       if (sclu.isNull()) sclu = root.createNestedArray(FPSTR(_alias));
 
+      /* laser states */
+      JsonArray laser = sclu.createNestedArray();
+      for(uint8_t i=0; i < totalLaser; i++) {
+        JsonObject las = laser.createNestedObject();
+        las["id"] = laserList[i].id;
+        las["on"] = laserList[i].isOn;
+      }
+
       /* add effect to the GUI laser effect list */
       JsonArray effects = sclu.createNestedArray();
-      for(int i=0; i < 7; i++) {
+      for(uint8_t i=0; i < 7; i++) {
         JsonObject fx = effects.createNestedObject();
         fx["id"] = i;
         fx["name"] = "Effect #"+(String)(i+1);
       }
 
-      JsonObject laser = sclu.createNestedObject();
-      laser["fx"] = currentEffect;
+      JsonObject meta = sclu.createNestedObject();
+      meta["fx"] = currentEffect;
 
       DEBUG_PRINT(F("---DEBUG "));
       DEBUG_PRINT(FPSTR(_name));
       DEBUG_PRINTLN(F("---"));
-      DEBUG_PRINTLN(F("state exposed in API."));
+      DEBUG_PRINTLN(F("JsonState exposed in API."));
     }
 
 
@@ -176,7 +238,7 @@ class UsermodBlubberLoungeSCLU : public Usermod
     {
       if (!initDone) return;  // prevent crash on boot applyPreset()
 
-      JsonArray sclu = root[FPSTR(_alias)];
+      JsonObject sclu = root[FPSTR(_alias)];
       if (!sclu.isNull()) 
       {
         // if (sclu[FPSTR(_enabled)].is<bool>()) 
@@ -188,9 +250,23 @@ class UsermodBlubberLoungeSCLU : public Usermod
         //   enabled = (bool)(str!="off"); // off is guaranteed to be present
         // }
         
-        currentEffect = sclu[1]["fx"];
-        DEBUG_PRINT(F("!!! currentFX: "));
-        DEBUG_PRINTLN(currentEffect);
+        // currentEffect = sclu[2]["fx"];
+        // DEBUG_PRINT(F("!!! currentFX: "));
+        // DEBUG_PRINTLN(currentEffect);
+
+        for(uint8_t i=0; i < totalLaser; i++) 
+        {
+          if(laserList[i].id == (int8_t)sclu["id"])
+          {
+            laserList[i].isOn = sclu["on"];
+
+            // DEBUG_PRINT(F("!!! Laser ID: "));
+            // DEBUG_PRINTLN(laserList[i].id);
+            // DEBUG_PRINT(F("!!! Laser State: "));
+            // DEBUG_PRINTLN((bool)laserList[i].isOn);
+          }
+        }
+
       }
 
 
