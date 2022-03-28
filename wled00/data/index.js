@@ -639,47 +639,57 @@ function populateSegments(s)
 	if (!noNewSegs && (cfg.comp.seglen?parseInt(d.getElementById(`seg${lSeg}s`).value):0)+parseInt(d.getElementById(`seg${lSeg}e`).value)<ledCount) d.getElementById(`segr${lSeg}`).style.display = "inline";
 	d.getElementById('rsbtn').style.display = (segCount > 1) ? "inline":"none";
 
-    let laso = s.sclu;
-    // console.log(laso);
-	let lc = "";
-	for(let i = 0; i < 8; i++) 
-	{
-		lc += `
-		<div class="laser" style="--las-item:${i};">
-			<!--<span> Laser ${i}</span>-->
-			<label class="check schkl">
-				&nbsp;
-				<input type="checkbox" id="laser${i}" onchange="laserOn(${i})" ${true ? "checked":""}>
-				<span class="checkmark schk"></span>
-			</label>
-		</div>
-		`;
-	}
+	if(s.slcu !== undefined) {
+		let laso = s.slcu;
+		if(laso[2].fx != 1) 
+		{
+			var lc = "";
+			for(let i = 0; i < 8; i++) 
+			{
+				lc += `
+				<div class="laser" style="--las-item:${i};">
+					<!--<span> Laser ${i}</span>-->
+					<label class="check schkl">
+						&nbsp;
+						<input type="checkbox" id="laser${i}" onchange="laserOn(${i})" ${true ? "checked":""}>
+						<span class="checkmark schk"></span>
+					</label>
+				</div>
+				`;
+			}
+			
+			d.getElementById('lasli').innerHTML = lc;
+		}
+		
+		console.log(laso);
 
-	let lfx = "";
-	for(let j = 0; j < (laso[1]||[]).length; j++) 
-	{
-		let lasi = laso[1][j];
-		lfx += generateListItemHtml(
-			'las',
-			lasi.id,
-			lasi.name,
-			'selLasFx',
-			'',
-			lasi.class,
-		);
-	}
+		let lfx = "";
+		for(let j = 0; j < (laso[1]||[]).length; j++) 
+		{
+			let lasi = laso[1][j];
+			lfx += generateListItemHtml(
+				'las',
+				lasi.id,
+				lasi.name,
+				'selLasFx',
+				'',
+				lasi.class,
+			);
+		}
 
-	d.getElementById('lasli').innerHTML = lc;
-	d.getElementById('lasfx').innerHTML = lfx;
+		d.getElementById('lasfx').innerHTML = lfx;
+	}
 }
 
-function setLaserState(sclu) {
+function updateLaser(laser, lasFx) {
 	// set laser state
-	for(let i=0; i < sclu.length; i++) 
+	for(let i=0; i < laser.length; i++) 
 	{
-		d.querySelector(`input#laser${sclu[i].id}`).checked = sclu[i].on;
+		d.querySelector(`input#laser${laser[i].id}`).checked = laser[i].on;
 	}
+}
+
+function setActiveLaserFX(slcu) {
 
 }
 
@@ -1059,19 +1069,28 @@ function readState(s,command=false) {
   d.getElementById('sliderSpeed').value = i.sx;
   d.getElementById('sliderIntensity').value = i.ix;
 
-  // retrieve laser and set their state
-  setLaserState(s.sclu[0]);
+  if(s.slcu !== undefined) 
+  {
+	// retrieve laser and set their state
+	if(s.slcu[2].fx != 1)
+	{
+		d.querySelector('#lasli').style.display = "none";
+		updateLaser(s.slcu[0], s.slcu[1]);
+	} else {
+		d.querySelector('#lasli').style.display = "flex";
+	}
 
-  // Laser Effects
-  var selLasFx = lasfxlist.querySelector(`input[name="las"][value="${s["sclu"][2].fx}"]`);
-  if (selLasFx) selLasFx.checked = true;
+	// Laser Effects
+	var selLasFx = lasfxlist.querySelector('input[name=\"las\"][value=\"'+s.slcu[2].fx+'\"]');
+	if (selLasFx) selLasFx.checked = true;
 
-  var selElement = lasfxlist.querySelector('.selected');
-  if (selElement) {
-    selElement.classList.remove('selected')
+	var selElement = lasfxlist.querySelector('.selected');
+	if (selElement) {
+		selElement.classList.remove('selected')
+	}
+	var selectedLaserEffect = lasfxlist.querySelector(`.lstI[data-id="${s.slcu[2].fx}"]`);
+	selectedLaserEffect.classList.add('selected');
   }
-  var selectedLaserEffect = lasfxlist.querySelector(`.lstI[data-id="${s["sclu"][2].fx}"]`);
-  selectedLaserEffect.classList.add('selected');
 
   // Effects
   var selFx = fxlist.querySelector(`input[name="fx"][value="${i.fx}"]`);
@@ -1653,7 +1672,7 @@ function setX(ind = null) {
 
 function laserOn(id) {
 	var sel = d.getElementById(`laser${id}`).checked;
-	var obj = {"sclu": {"id":id,"on":sel}};
+	var obj = {"slcu": {"id":id,"on":sel}};
 	requestJson(obj, false);
 }
 
@@ -1670,7 +1689,8 @@ function selLasFx(id = null) {
 	d.querySelector(`#lasfx .lstI[data-id="${id}"]`).classList.add('selected');
 
 	// kinda aids... but has to work for now
-	var obj = {"sclu": [[],[],{"fx": parseInt(id)}]};
+	// var obj = {"slcu": [[],[],{"fx": parseInt(id)}]};
+	var obj = {"slcu": {"fx": parseInt(id)}};
 	requestJson(obj);
 }
 

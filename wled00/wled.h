@@ -3,7 +3,7 @@
 /*
    Main sketch, global variable declarations
    @title WLED project sketch
-   @version 0.13.0-b6
+   @version 0.13.0-laser
    @author Christian Schwinne
  */
 

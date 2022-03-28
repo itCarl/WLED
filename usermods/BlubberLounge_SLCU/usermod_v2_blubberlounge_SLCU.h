@@ -5,49 +5,79 @@
  *
  *
  *
- *
  */
+typedef struct Laser
+{
+    uint8_t id;
+    uint8_t pin = -1;
+    bool isOn = false;    // member for internal computations
+    bool isHigh = false;  // physical pin output
+    bool reverse = true;  // reverse pin output
 
-typedef struct Laser {
-  int8_t id;
-  int8_t pin;
-  bool   isOn = true;
-  bool   isOutput = true;
-} Laser;
+    /* setter & getter */
+    void setIsOn(bool isOn)
+    {
+        this->isOn = isOn;
+        this->isHigh = this->reverse ? !isOn : isOn;
+    };
 
-// typedef struct test {
-//   int number;
-// } test;
+    void setPin(uint8_t pin) 
+    {
+        if (pinManager.allocatePin(pin, true, PinOwner::UM_BLUBBERLOUNGE_SLCU)) 
+        {
+            this->pin = pin;
+            pinMode(this->pin, true);
+            digitalWrite(this->pin, this->isOn);
+        } else {
+            this->pin = -1;
+        }
+    };
+
+
+    /* constructor */
+    Laser()
+    {
+        Laser(-1);
+    }
+
+    Laser(uint8_t pin)
+    {
+        this->setPin(pin);
+    }
+} laser;
 
 
 
+// begin Helper
+#define SIZE(x) (sizeof(x)/sizeof(*x))
+#define SIZEP(x) *(&x + 1) - x
+// end Helper
 
-
-/*
+/**
+ * All about Laser coasters
  *
  *
  *
- *
- *
+ * @author Maximilian Mewes
  */
-class UsermodBlubberLoungeSCLU : public Usermod 
+class UsermodBlubberLoungeSLCU : public Usermod 
 {
   private:
     /* configuration (available in API and stored in flash) */
-    bool enabled = false;
-    int8_t currentEffect = 3;
-    static const int8_t totalLaser = 8;
+    bool enabled = true;
+    uint8_t currentFX = 1;
 
 
     /* runtime variables */
     bool initDone = false;
-    unsigned long segment_delay_ms = 150;
-
-    //Private class members. You can declare variables and functions only accessible to your usermod here
+    unsigned long delay_ms = 10;
     unsigned long lastTime = 0;
+    unsigned long fx_speed = 500;
+    unsigned long fx_lastTime = 0;
+    uint8_t curLaser = 0;
 
-    PinManagerPinType LaserPins[totalLaser];
-    Laser laserList[totalLaser];
+    PinManagerPinType LaserPins[8];
+    Laser laserList[8];
 
     // strings to reduce flash memory usage (used more than twice)
     static const char _name[];
@@ -61,8 +91,11 @@ class UsermodBlubberLoungeSCLU : public Usermod
     {
       // TODO at pins for the other chips later
       // available pins for esp8266
-      uint8_t avai_pins[8] = {0, 1, 4, 5, 12, 13, 14, 15};
-
+      #ifndef WLED_DEBUG
+        uint8_t avai_pins[8] = {0, 1, 4, 5, 12, 13, 14, 15};
+      #else
+        uint8_t avai_pins[8] = {0, 4, 5, 12, 13, 14, 15};
+      #endif
       // check if microchip has enough pins available
       // if(laserCount > sizeof(avai_pins)/sizeof(*avai_pins) ) 
       // {
@@ -77,14 +110,17 @@ class UsermodBlubberLoungeSCLU : public Usermod
         initLaser[i].pin = avai_pins[i];
 
         pinManagerPins[i].pin = initLaser[i].pin;
-        pinManagerPins[i].isOutput = initLaser[i].isOutput;
+        pinManagerPins[i].isOutput = true;
+        
+        pinMode(initLaser[i].pin, true);
+        digitalWrite(initLaser[i].pin, initLaser[i].isOn);
       }
 
       // D1mini labels and GPIO
       // PinManagerPinType LaserPins[totalLaser] = {
       //     {  0, true },    // D3 - GPIO0
       //     {  1, true },    // TX - GPIO1
-      //     {  4, true },    // D4 - GPIO4
+      //     {  4, true },    // D2 - GPIO4
       //     {  5, true },    // D1 - GPIO5
       //     { 12, true },    // D6 - GPIO12
       //     { 13, true },    // D7 - GPIO13
@@ -93,14 +129,128 @@ class UsermodBlubberLoungeSCLU : public Usermod
       // };
     }
 
-    // int a = 10;
-    // test b[2];
-    // int* aptr = &a;
+    /**
+     *  Custom debug method 
+     * 
+     */
+    void sclDebug(String message) {
+      DEBUG_PRINT(F("\n---DEBUG "));
+      DEBUG_PRINT(FPSTR(_name));
+      DEBUG_PRINTLN(F("---"));
 
-    // void teeest(int &c, test *d) {
-    //   c = 11;
-    //   d[0].number = 34;
-    // }
+      // for(uint8_t i = 0; i < SIZE(message); i++ ) DEBUG_PRINTLN(message[i]);
+      DEBUG_PRINTLN(message);
+
+      DEBUG_PRINTLN(F("-------------------------------- \n"));
+    }
+
+    /**
+     *  Routine when Usermod gets enabled / disabled 
+     */
+    void enable(bool enable)
+    {
+      if (enable)
+      {
+        this->sclDebug(F("Enabled"));
+
+        // DEBUG_PRINT(F("Delay between steps: "));
+        // DEBUG_PRINT(delay_ms);
+        // DEBUG_PRINT(F(" milliseconds.\nStairs switch off after: "));
+        // DEBUG_PRINT(on_time_ms / 1000);
+        // DEBUG_PRINTLN(F(" seconds."));
+        for(int i = 0; i < SIZEP(laserList); i++ ) {
+          pinMode(laserList[i].pin, OUTPUT);
+        }
+      } else {
+        this->sclDebug(F("Disabled"));
+
+        // TODO dealocate pins and stuff
+      }
+
+      enabled = enable;
+    }
+
+    uint8_t getNextLaser(uint8_t id) 
+    {
+      return (++id % ((uint8_t)SIZE(laserList)+1));
+    }
+
+    uint8_t getPrevLaser(uint8_t id) 
+    {
+      return (--id % ((uint8_t)SIZE(laserList)+1));
+    }
+
+    /**
+     * update physical pins output
+     * 
+     * 
+     */
+    void fx_update() 
+    {
+      for (uint8_t i=0; i < SIZEP(laserList); i++)
+      {
+        digitalWrite(laserList[i].pin, laserList[i].isHigh);
+      }
+    }
+
+    /**
+     * utility method
+     * turn off all lasers interally and phisically 
+     * 
+     */
+    void fx_clear() 
+    {
+      for (uint8_t i=0; i < SIZEP(laserList); i++)
+      {
+        laserList[i].setIsOn(false);
+        digitalWrite(laserList[i].pin, 0);
+      }
+    }
+
+    // default effect: no effect just static laser, manuel mode
+    void fx_default() {
+      // do nothing.
+      return;
+    }
+
+    // test effect: test effects here before finally giving them a name and seperate method
+    void fx_test()
+    {
+      if ((millis() - fx_lastTime) > fx_speed) 
+      {
+        fx_lastTime = millis();
+        curLaser = getNextLaser(curLaser);
+        
+        laserList[getPrevLaser(curLaser)].setIsOn(false);
+        laserList[curLaser].setIsOn(true);
+
+
+        // updates laser
+        this->fx_update();
+      }
+    }
+
+    void fx_AllOn() {
+      for (uint8_t i=0; i < SIZEP(laserList); i++)
+      {
+        laserList[i].setIsOn(true);
+        digitalWrite(laserList[i].pin, 0);
+      }
+
+      // updates laser
+      this->fx_update();
+    }
+
+    void fx_AllOff() {
+      this->fx_clear();
+
+      // updates laser
+      this->fx_update();
+    }
+
+    void fx_arround() {
+    
+    }
 
   public:
     //Functions called by WLED
@@ -111,25 +261,17 @@ class UsermodBlubberLoungeSCLU : public Usermod
      */
     void setup() 
     {
-      // DEBUG_PRINTLN( a );
-      // DEBUG_PRINTLN( (int)aptr );
-      // DEBUG_PRINTLN( b[0].number );
-
-      // teeest(a, &b[0]);
-
-      // DEBUG_PRINTLN( a );
-      // DEBUG_PRINTLN( b[0].number );
-
-      createLaserList(totalLaser, LaserPins, laserList);
+      createLaserList(SIZEP(laserList), LaserPins, laserList);
 
       // when WLED_DEBUG is defined this will throw an Error
       // IO1 is reserved for Debugging see wled.cpp line 311
-      if (!pinManager.allocateMultiplePins(LaserPins, totalLaser, PinOwner::UM_BLUBBERLOUNGE_SCLU)) 
+      if (!pinManager.allocateMultiplePins(LaserPins, SIZEP(laserList), PinOwner::UM_BLUBBERLOUNGE_SLCU)) 
       {
-        DEBUG_PRINTLN(F("Error: not all pins got allocated"));
+        this->sclDebug(F("Error: not all pins got allocated"));
 
       }
 
+      enable(enabled);
       initDone = true;
     }
 
@@ -150,22 +292,40 @@ class UsermodBlubberLoungeSCLU : public Usermod
      * Tips:
      * 1. You can use "if (WLED_CONNECTED)" to check for a successful network connection.
      *    Additionally, "if (WLED_MQTT_CONNECTED)" is available to check for a connection to an MQTT broker.
-     * 
-     * 2. Try to avoid using the delay() function. NEVER use delays longer than 10 milliseconds.
-     *    Instead, use a timer check as shown here.
      */
     void loop() 
     {
       if (!enabled || strip.isUpdating()) return;
-
+        
       updateLaser();
+    
     }
 
+    /**
+     * 
+     */
     void updateLaser() 
     {
-      if ((millis() - lastTime) > segment_delay_ms) 
+      if ((millis() - lastTime) > delay_ms) 
       {
         lastTime = millis();
+
+        switch (this->currentFX)
+        {
+          case 2:
+            this->fx_test();
+            break;
+          case 3:
+            this->fx_AllOn();
+            break;
+          case 4:
+            this->fx_AllOff();
+            break;
+
+          default:
+            this->fx_default();
+            break;
+        }        
       }
     }
 
@@ -177,12 +337,12 @@ class UsermodBlubberLoungeSCLU : public Usermod
      */
     void addToJsonInfo(JsonObject& root)
     {
-      JsonObject sclu = root["u"];
-      if (sclu.isNull()) sclu = root.createNestedObject("u");
+      JsonObject slcu = root["u"];
+      if (slcu.isNull()) slcu = root.createNestedObject("u");
 
-      JsonArray usermodEnabled = sclu.createNestedArray("Shisha coaster Laser");  // name
+      JsonArray usermodEnabled = slcu.createNestedArray("Shisha coaster Laser");  // name
       
-      String btn = F("<button class=\"btn infobtn cbtn\" onclick=\"requestJson({sclu:{enabled:");
+      String btn = F("<button class=\"btn infobtn cbtn\" onclick=\"requestJson({slcu:{enabled:");
       if (enabled) {
         btn += F("false}});\"style=\"background-color:var(--cc-g);\">");
         btn += F("enabled");
@@ -201,32 +361,32 @@ class UsermodBlubberLoungeSCLU : public Usermod
      */
     void addToJsonState(JsonObject& root)
     {
-      JsonArray sclu = root[FPSTR(_alias)];
-      if (sclu.isNull()) sclu = root.createNestedArray(FPSTR(_alias));
+      JsonArray slcu = root[FPSTR(_alias)];
+      if (slcu.isNull()) slcu = root.createNestedArray(FPSTR(_alias));
 
       /* laser states */
-      JsonArray laser = sclu.createNestedArray();
-      for(uint8_t i=0; i < totalLaser; i++) {
+      JsonArray laser = slcu.createNestedArray();
+      for(uint8_t i=0; i < SIZEP(laserList); i++) {
         JsonObject las = laser.createNestedObject();
         las["id"] = laserList[i].id;
-        las["on"] = laserList[i].isOn;
+        las["on"] = laserList[i].reverse ? !laserList[i].isOn : laserList[i].isOn;
       }
 
       /* add effect to the GUI laser effect list */
-      JsonArray effects = sclu.createNestedArray();
-      for(uint8_t i=0; i < 7; i++) {
+      JsonArray effects = slcu.createNestedArray();
+      JsonObject fx = effects.createNestedObject();
+      fx["id"] = 1;
+      fx["name"] = "manual control";
+
+      for(uint8_t i=1; i < 7; i++) {
         JsonObject fx = effects.createNestedObject();
-        fx["id"] = i;
+        fx["id"] = i+1;
         fx["name"] = "Effect #"+(String)(i+1);
       }
 
-      JsonObject meta = sclu.createNestedObject();
-      meta["fx"] = currentEffect;
-
-      DEBUG_PRINT(F("---DEBUG "));
-      DEBUG_PRINT(FPSTR(_name));
-      DEBUG_PRINTLN(F("---"));
-      DEBUG_PRINTLN(F("JsonState exposed in API."));
+      JsonObject meta = slcu.createNestedObject();
+      meta["en"] = enabled;
+      meta["fx"] = currentFX;
     }
 
 
@@ -238,42 +398,45 @@ class UsermodBlubberLoungeSCLU : public Usermod
     {
       if (!initDone) return;  // prevent crash on boot applyPreset()
 
-      JsonObject sclu = root[FPSTR(_alias)];
-      if (!sclu.isNull()) 
+      JsonObject slcu = root[FPSTR(_alias)];
+      if (!slcu.isNull()) 
       {
-        // if (sclu[FPSTR(_enabled)].is<bool>()) 
-        // {
-        //   enabled = sclu[FPSTR(_enabled)].as<bool>();
-        // } else 
-        // {
-        //   String str = sclu[FPSTR(_enabled)]; // checkbox -> off or on
-        //   enabled = (bool)(str!="off"); // off is guaranteed to be present
-        // }
         
-        // currentEffect = sclu[2]["fx"];
-        // DEBUG_PRINT(F("!!! currentFX: "));
-        // DEBUG_PRINTLN(currentEffect);
-
-        for(uint8_t i=0; i < totalLaser; i++) 
+        /* general usermod settings  */
+        if (slcu[FPSTR(_enabled)].is<bool>()) 
         {
-          if(laserList[i].id == (int8_t)sclu["id"])
-          {
-            laserList[i].isOn = sclu["on"];
+          enabled = slcu[FPSTR(_enabled)].as<bool>();
+        } else 
+        {
+          String str = slcu[FPSTR(_enabled)]; // checkbox -> off or on
+          enabled = (bool)(str!="off"); // off is guaranteed to be present
+        }
 
-            // DEBUG_PRINT(F("!!! Laser ID: "));
-            // DEBUG_PRINTLN(laserList[i].id);
-            // DEBUG_PRINT(F("!!! Laser State: "));
-            // DEBUG_PRINTLN((bool)laserList[i].isOn);
+        /* change laser */
+        // FIXME ugly af... refactor pls
+        for (uint8_t i=0; i < SIZEP(laserList); i++)
+        {
+          if (laserList[i].id == (uint8_t)slcu["id"])
+          {
+            laserList[i].isOn = laserList[i].reverse ? !slcu["on"] : slcu["on"];
+            this->sclDebug("Laser: " + (String)laserList[i].isOn);
+            digitalWrite(laserList[i].pin, laserList[i].isOn);//laserList[i].isOn);
+
+            DEBUG_PRINT(F("Laser ID: "));
+            DEBUG_PRINTLN(laserList[i].id);
+            DEBUG_PRINT(F("Laser PIN: "));
+            DEBUG_PRINTLN(laserList[i].pin);
+            DEBUG_PRINT(F("Laser State: "));
+            DEBUG_PRINTLN((bool)laserList[i].isOn);
           }
         }
 
+
+        this->currentFX = slcu["fx"] != NULL ? slcu["fx"] : this->currentFX;
+        // this->sclDebug(slcu["fx"]);
       }
 
-
-      DEBUG_PRINT(F("---DEBUG "));
-      DEBUG_PRINT(FPSTR(_name));
-      DEBUG_PRINTLN(F("---"));
-      DEBUG_PRINTLN(F("state read from API."));
+      // this->sclDebug(F("state read from API."));
     }
 
 
@@ -314,15 +477,14 @@ class UsermodBlubberLoungeSCLU : public Usermod
      */
     void addToConfig(JsonObject& root)
     {
-      JsonObject sclu = root[FPSTR(_alias)];
-      if (sclu.isNull()) sclu = root.createNestedObject(FPSTR(_alias));
+      JsonObject slcu = root[FPSTR(_alias)];
+      if (slcu.isNull()) slcu = root.createNestedObject(FPSTR(_alias));
 
-      sclu[FPSTR(_enabled)] = enabled;
+      slcu[FPSTR(_enabled)] = enabled;
+      slcu["FX"] = currentFX;
 
-      DEBUG_PRINT(F("---DEBUG "));
-      DEBUG_PRINT(FPSTR(_name));
-      DEBUG_PRINTLN(F("---"));
-      DEBUG_PRINTLN(F("config saved."));
+
+      this->sclDebug(F("Config saved."));
     }
 
 
@@ -343,25 +505,21 @@ class UsermodBlubberLoungeSCLU : public Usermod
      */
     bool readFromConfig(JsonObject& root)
     {
-      JsonObject sclu = root[FPSTR(_alias)];
-      if (sclu.isNull()) {
-        DEBUG_PRINT(F("--- DEBUG "));
-        DEBUG_PRINT(FPSTR(_name));
-        DEBUG_PRINTLN(F("---"));
-        DEBUG_PRINTLN(F(": No config found. (Using defaults.)"));
+      JsonObject slcu = root[FPSTR(_alias)];
+      if (slcu.isNull()) {
+
+        this->sclDebug(F("No config found. (Using defaults.)"));
         return false;
       }
 
      
-      enabled = sclu[FPSTR(_enabled)] | enabled;
+      enabled = slcu[FPSTR(_enabled)] | enabled;
+      currentFX = slcu["FX"] | currentFX;
 
 
-      DEBUG_PRINT(F("--- DEBUG "));
-      DEBUG_PRINT(FPSTR(_name));
-      DEBUG_PRINTLN(F("---"));
       if (!initDone) {
         // first run: reading from cfg.json
-        DEBUG_PRINTLN(F(" config loaded."));
+        this->sclDebug(F("Config loaded."));
       } else {
 
       }
@@ -391,11 +549,11 @@ class UsermodBlubberLoungeSCLU : public Usermod
      */
     uint16_t getId()
     {
-      return USERMOD_ID_BLUBBERLOUNGE_SCLU;
+      return USERMOD_ID_BLUBBERLOUNGE_SLCU;
     }
 };
 
 // strings to reduce flash memory usage (used more than twice)
-const char UsermodBlubberLoungeSCLU::_name[]                      PROGMEM = "Shisha coaster Laser";
-const char UsermodBlubberLoungeSCLU::_alias[]                     PROGMEM = "sclu";
-const char UsermodBlubberLoungeSCLU::_enabled[]                   PROGMEM = "enabled";
+const char UsermodBlubberLoungeSLCU::_name[]                      PROGMEM = "Shisha Laser coaster";
+const char UsermodBlubberLoungeSLCU::_alias[]                     PROGMEM = "slcu";
+const char UsermodBlubberLoungeSLCU::_enabled[]                   PROGMEM = "enabled";
