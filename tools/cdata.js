@@ -262,6 +262,15 @@ writeChunks(
           .replace("%%","%")
     },
     {
+      file: "custom.css",
+      name: "PAGE_customCss",
+      method: "gzip",
+      filter: "css-minify",
+      mangle: (str) =>
+        str
+          .replace("%%","%")
+    },
+    {
       file: "settings.htm",
       name: "PAGE_settings",
       method: "gzip",

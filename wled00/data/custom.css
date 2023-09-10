@@ -1,0 +1,40 @@
+:root {
+	/* custom colors */
+	--cc-g: rgb(46, 176, 134);
+	--cc-r: rgb(179, 48, 48);
+}
+
+hr.custom {
+    width: 80%;
+    border: 0;
+    height: 1px;
+    background-color: var(--c-5);
+	margin: 3.75rem auto;
+}
+
+#customSegments {
+    margin-top: 2rem;
+}
+
+svg#eagle > path {
+    fill: #fff;
+}
+
+svg#eagle > path:not(#eagleBody):hover {
+    fill: var(--c-5);
+    cursor: pointer;
+}
+
+#Cseg0sel,
+#Cseg1sel,
+#Cseg2sel,
+#Cseg3sel,
+#Cseg4sel,
+#Cseg5sel {
+	position: absolute;
+	opacity: 0;
+	cursor: pointer;
+	height: 0;
+	width: 0;
+}
+
